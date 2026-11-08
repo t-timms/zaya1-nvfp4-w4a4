@@ -31,6 +31,7 @@ Usage
 
 Exit code is 0 only on PASS. sweep_cudagraph_modes.sh relies on that.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -47,7 +48,7 @@ MODES = ["NONE", "PIECEWISE", "FULL", "FULL_DECODE_ONLY", "FULL_AND_PIECEWISE"]
 # Kept short so the gate costs seconds, not minutes.
 PROMPTS = [
     "The capital of France is",
-    "def fibonacci(n):\n    \"\"\"Return the nth Fibonacci number.\"\"\"\n",
+    'def fibonacci(n):\n    """Return the nth Fibonacci number."""\n',
     "Compute step by step: 17 * 24 = ",
     "Q: Name three primary colors.\nA:",
     "The following is a list of the planets in our solar system, in order from the sun:",
@@ -145,8 +146,7 @@ def main() -> int:
     # Validate the reference BEFORE loading a model. Discovering a missing
     # reference after a full engine init wastes a load and the VRAM with it.
     if not args.write_reference and not ref_path.exists():
-        print(f"no reference at {ref_path}; run once with --mode NONE --write-reference",
-              file=sys.stderr)
+        print(f"no reference at {ref_path}; run once with --mode NONE --write-reference", file=sys.stderr)
         return 2
 
     texts = generate(args.model, args.mode, args.gpu_mem, args.max_tokens)
@@ -175,10 +175,7 @@ def main() -> int:
         tripped = garbage_checks(got)
         sims.append(sim)
         all_tripped.extend(tripped)
-        per_prompt.append(
-            {"prompt": prompt, "similarity": round(sim, 4), "garbage": tripped,
-             "output": got[:400]}
-        )
+        per_prompt.append({"prompt": prompt, "similarity": round(sim, 4), "garbage": tripped, "output": got[:400]})
 
     mean_sim = sum(sims) / len(sims)
     if all_tripped:

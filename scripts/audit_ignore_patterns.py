@@ -6,6 +6,7 @@ base renames modules, so a pattern can silently start matching nothing (leaving 
 sensitive module quantized) or start matching something new (over-excluding).
 This is pure name analysis against the safetensors index. No GPU, no model load.
 """
+
 import glob
 import json
 import pathlib
@@ -30,8 +31,7 @@ def load_names(pattern):
 
 HUB = pathlib.Path.home() / ".cache/huggingface/hub"
 new = load_names(str(HUB / "models--Zyphra--ZAYA1-8B/snapshots/*/model.safetensors.index.json"))
-old = load_names(str(HUB / "models--Ttimms--zaya1-8b-nvfp4-w4a4-uniform/snapshots/*"
-                          "/model.safetensors.index.json"))
+old = load_names(str(HUB / "models--Ttimms--zaya1-8b-nvfp4-w4a4-uniform/snapshots/*/model.safetensors.index.json"))
 
 if new is None:
     raise SystemExit("refactored base index not cached yet")
