@@ -48,6 +48,7 @@ Verified by source inspection against transformers 5.15.1 and llmcompressor
 0.13.0. Confirm with `quantize_zaya_ct_nvfp4.py --dry-run` before a full run —
 the dry run should report the expert Linears among the calibrated modules.
 """
+
 from __future__ import annotations
 
 CONFIG_PATH = "transformers.models.zaya.configuration_zaya.ZayaConfig"
@@ -105,15 +106,14 @@ def register(strict: bool = True) -> bool:
 
 def verify_expert_layout() -> None:
     """Fail loudly if ZayaExperts no longer matches the non-transposed contract."""
+    import inspect
+
     import torch
     from transformers.models.zaya.modeling_zaya import ZayaExperts  # noqa: F401
 
-    import inspect
-
     src = inspect.getsource(ZayaExperts.__init__)
     assert "gate_up_proj" in src and "down_proj" in src, (
-        "ZayaExperts no longer exposes gate_up_proj/down_proj - the generic "
-        "ExpertMLPWithGate path may not apply"
+        "ZayaExperts no longer exposes gate_up_proj/down_proj - the generic ExpertMLPWithGate path may not apply"
     )
     assert "2 * self.intermediate_dim" in src, (
         "gate_up_proj is no longer [E, 2*I, H]; check is_transposed and the "

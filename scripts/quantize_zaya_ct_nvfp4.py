@@ -508,15 +508,17 @@ def _gptq_correction(
     return W_q
 
 
-from compressed_tensors.offload import (
+# Imported after logging.basicConfig on purpose: llmcompressor configures its own
+# logging on import, and moving these to the top would change the log setup.
+from compressed_tensors.offload import (  # noqa: E402
     disable_offloading,
     set_onload_device,
     update_offload_parameter,
 )
-from llmcompressor.modeling.moe.context import moe_calibration_context
+from llmcompressor.modeling.moe.context import moe_calibration_context  # noqa: E402
 
 
-class LinearizedExpertsWontMove(RuntimeError):
+class LinearizedExpertsWontMoveError(RuntimeError):
     """Raised when linearized MoE experts cannot be moved onto the accelerator.
 
     Measured 2026-09-03 on transformers 5.14.1 / llmcompressor 0.13.0: after
@@ -565,7 +567,7 @@ def _calibrate_with_cpu_fallback(model, calibration_tensor, **kwargs):
 
     The GPU path shuttles one layer at a time onto the card, which is what makes
     an 8B BF16 model calibrate inside 16 GB. When the linearized MoE experts
-    refuse to move (see LinearizedExpertsWontMove), that path cannot produce
+    refuse to move (see LinearizedExpertsWontMoveError), that path cannot produce
     correct activation scales, so fall back to calibrating on CPU rather than
     silently measuring a half-moved layer.
 
@@ -574,7 +576,7 @@ def _calibrate_with_cpu_fallback(model, calibration_tensor, **kwargs):
     """
     try:
         return calibrate_input_global_scales_layerwise(model, calibration_tensor, **kwargs)
-    except LinearizedExpertsWontMove as exc:
+    except LinearizedExpertsWontMoveError as exc:
         logger.warning("=" * 60)
         logger.warning("GPU layer-wise calibration unavailable: %s", exc)
         logger.warning(
@@ -789,9 +791,7 @@ def calibrate_input_global_scales_layerwise(
             )
         _rope_layer_type = _unique_types[0] if _unique_types else None
         _rope_params = getattr(model.config, "rope_parameters", None) or {}
-        _swa_layer_type = next(
-            (t for t in _rope_params if "sliding" in str(t)), None
-        )
+        _swa_layer_type = next((t for t in _rope_params if "sliding" in str(t)), None)
         logger.info(
             "Rotary layer_type=%r (%d layers, %d distinct); swa layer_type=%r",
             _rope_layer_type,
@@ -801,14 +801,10 @@ def calibrate_input_global_scales_layerwise(
         )
 
         position_embeddings = (
-            _call_rotary(rotary, dummy_h, position_ids, _rope_layer_type)
-            if rotary is not None
-            else None
+            _call_rotary(rotary, dummy_h, position_ids, _rope_layer_type) if rotary is not None else None
         )
         swa_position_embeddings = (
-            _call_rotary(swa_rotary, dummy_h, position_ids, _swa_layer_type)
-            if swa_rotary is not None
-            else None
+            _call_rotary(swa_rotary, dummy_h, position_ids, _swa_layer_type) if swa_rotary is not None else None
         )
         del dummy_h
 
@@ -896,9 +892,7 @@ def calibrate_input_global_scales_layerwise(
         # coverage but measures input_global_scale over tokens the expert never
         # routes at inference, which can inflate the activation scale.
         _all_experts_ctx = (
-            contextlib.nullcontext()
-            if os.environ.get("ZAYA_NO_ALL_EXPERTS")
-            else moe_calibration_context()
+            contextlib.nullcontext() if os.environ.get("ZAYA_NO_ALL_EXPERTS") else moe_calibration_context()
         )
         with (
             _all_experts_ctx,
@@ -909,15 +903,11 @@ def calibrate_input_global_scales_layerwise(
             # experts legitimately read back as CPU, so checking there would be
             # measuring the wrong thing. A stray tensor here would silently
             # calibrate activation scales against a partially-onloaded layer.
-            _stray = [
-                n for n, pp in layer.named_parameters()
-                if pp.device.type != torch.device(dev).type
-            ] + [
-                n for n, bb in layer.named_buffers()
-                if bb.device.type != torch.device(dev).type
+            _stray = [n for n, pp in layer.named_parameters() if pp.device.type != torch.device(dev).type] + [
+                n for n, bb in layer.named_buffers() if bb.device.type != torch.device(dev).type
             ]
             if _stray:
-                raise LinearizedExpertsWontMove(
+                raise LinearizedExpertsWontMoveError(
                     f"layer {layer_idx}: {len(_stray)} tensors are not on {dev} even "
                     f"inside align_modules (first few: {_stray[:5]})."
                 )
@@ -988,9 +978,7 @@ def calibrate_input_global_scales_layerwise(
                 # Offload-safe: a plain `.data =` here is silently dropped on the
                 # offloaded expert modules, which would discard the entire GPTQ
                 # correction while still reporting it as applied.
-                update_offload_parameter(
-                    mod, "weight", W_corrected.to(mod.weight.dtype)
-                )
+                update_offload_parameter(mod, "weight", W_corrected.to(mod.weight.dtype))
                 del H_hess, W, W_corrected
                 gptq_applied += 1
             if gptq_applied > 0:
